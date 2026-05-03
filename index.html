@@ -120,6 +120,7 @@
     .kcr-gauge-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 14px; }
     .gauge-item { text-align: center; }
     .gauge-canvas { display: block; width: 100%; height: 115px; }
+    .gauge-delta { font-size: 0.7rem; font-weight: 700; margin-top: 2px; }
 
     /* ── Table ── */
     .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
@@ -652,6 +653,13 @@ function filterSurveys(days) {
   const cut = new Date(); cut.setDate(cut.getDate() - days);
   return ALL.filter(s => s.date >= cut);
 }
+function filterPrevSurveys(days) {
+  if (!days) return [];
+  const now = new Date();
+  const start = new Date(now); start.setDate(start.getDate() - days * 2);
+  const end   = new Date(now); end.setDate(end.getDate() - days);
+  return ALL.filter(s => s.date >= start && s.date < end);
+}
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const fmtDate = d => d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' });
@@ -676,6 +684,11 @@ function kcrColor(v) {
   if (v >= 4.0) return '#6ee7b7';
   if (v >= 3.5) return '#f59e0b';
   if (v >= 3.0) return '#fb923c';
+  return '#ef4444';
+}
+function kcrGaugeColor(pct) {
+  if (pct >= 90) return '#10b981';
+  if (pct >= 80) return '#f59e0b';
   return '#ef4444';
 }
 
@@ -1359,14 +1372,20 @@ function render(days) {
   kcrChart.update();
 
   // KCR Gauges (Top Box %)
+  const prevSurveys = filterPrevSurveys(days);
+  const mPrev = prevSurveys.length >= 5 ? calcMetrics(prevSurveys) : null;
   const grid = document.getElementById('kcr-gauge-grid');
-  grid.innerHTML = KCR_KEYS.map(k =>
-    `<div class="gauge-item"><canvas class="gauge-canvas" data-key="${k}"></canvas></div>`
-  ).join('');
+  grid.innerHTML = KCR_KEYS.map(k => {
+    const delta = mPrev ? Math.round(m.kcr[k] - mPrev.kcr[k]) : null;
+    const deltaHtml = delta != null
+      ? `<div class="gauge-delta" style="color:${delta >= 0 ? 'var(--positive)' : 'var(--negative)'}">${delta >= 0 ? '+' : ''}${delta}% vs prev</div>`
+      : '';
+    return `<div class="gauge-item"><canvas class="gauge-canvas" data-key="${k}"></canvas>${deltaHtml}</div>`;
+  }).join('');
   grid.querySelectorAll('.gauge-canvas').forEach(canvas => {
     const k = canvas.dataset.key;
     const label = k.charAt(0).toUpperCase() + k.slice(1);
-    drawGauge(canvas, m.kcr[k], label, chsColor(m.kcr[k]));
+    drawGauge(canvas, m.kcr[k], label, kcrGaugeColor(m.kcr[k]));
   });
 
   // KCR Stacked Bar
