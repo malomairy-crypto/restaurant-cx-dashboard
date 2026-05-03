@@ -1,0 +1,1465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CX Dashboard — The Grand Table</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
+  <style>
+    :root {
+      --bg: #0b1120;
+      --surface: #131f35;
+      --surface2: #1a2845;
+      --border: #1e3050;
+      --text: #e8edf5;
+      --muted: #7a8fb0;
+      --accent: #f59e0b;
+      --positive: #10b981;
+      --neutral-col: #f59e0b;
+      --negative: #ef4444;
+      --blue: #3b82f6;
+      --gauge-track: #1e3050;
+      --chart-grid: #131f35;
+      --chart-grid-zero: #334155;
+    }
+    html[data-theme="light"] {
+      --bg: #f0f4f8;
+      --surface: #ffffff;
+      --surface2: #f1f5f9;
+      --border: #dde3ed;
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #f59e0b;
+      --positive: #059669;
+      --neutral-col: #d97706;
+      --negative: #dc2626;
+      --blue: #2563eb;
+      --gauge-track: #dde3ed;
+      --chart-grid: #f1f5f9;
+      --chart-grid-zero: #cbd5e1;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+
+    /* ── Header ── */
+    header {
+      padding: 18px 32px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+    }
+    .header-brand { display: flex; align-items: center; gap: 12px; }
+    .brand-icon { width: 36px; height: 36px; background: linear-gradient(135deg,#f59e0b,#ef4444); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; }
+    .brand-name { font-size: 1rem; font-weight: 700; }
+    .brand-sub { font-size: 0.72rem; color: var(--muted); margin-top: 1px; }
+    .filters { display: flex; gap: 6px; }
+    .filter-btn {
+      padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); font-size: 0.78rem; cursor: pointer; transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 700; }
+
+    /* ── Theme toggle ── */
+    .theme-toggle {
+      width: 36px; height: 20px; border-radius: 999px; border: 1px solid var(--border);
+      background: var(--surface2); cursor: pointer; position: relative;
+      transition: background 0.2s, border-color 0.2s; flex-shrink: 0;
+      display: flex; align-items: center; padding: 0 3px;
+    }
+    .theme-toggle::after {
+      content: ''; width: 14px; height: 14px; border-radius: 50%;
+      background: var(--muted); transition: transform 0.2s, background 0.2s;
+    }
+    html[data-theme="light"] .theme-toggle { background: #e0e7ef; border-color: #cbd5e1; }
+    html[data-theme="light"] .theme-toggle::after { transform: translateX(16px); background: var(--accent); }
+    .theme-icon { font-size: 0.8rem; margin-right: 4px; line-height: 1; }
+    .header-right { display: flex; align-items: center; gap: 10px; }
+
+    main { padding: 24px 32px; max-width: 1440px; margin: 0 auto; }
+
+    /* ── Section label ── */
+    .section-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 12px; }
+
+    /* ── KPI Cards ── */
+    .kpi-row { display: grid; grid-template-columns: repeat(4,1fr); gap: 14px; margin-bottom: 20px; }
+    .kpi-card {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px;
+      position: relative; overflow: hidden;
+    }
+    .kpi-card::before { content:''; position:absolute; top:0; left:0; right:0; height:3px; border-radius:12px 12px 0 0; }
+    .kpi-card.nps-card::before { background: var(--blue); }
+    .kpi-card.chs-card::before { background: var(--positive); }
+    .kpi-card.total-card::before { background: var(--accent); }
+    .kpi-card.kcr-card::before { background: #a78bfa; }
+    .kpi-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
+    .kpi-value { font-size: 2.4rem; font-weight: 800; line-height: 1; letter-spacing: -0.02em; }
+    .kpi-sub { font-size: 0.73rem; color: var(--muted); margin-top: 8px; line-height: 1.5; }
+    .kpi-bar { height: 4px; border-radius: 2px; background: var(--border); margin-top: 14px; overflow: hidden; }
+    .kpi-bar-fill { height: 100%; border-radius: 2px; transition: width 0.6s ease; }
+
+    /* ── Charts row ── */
+    .charts-row { display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 14px; margin-bottom: 20px; }
+    .chart-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+    .chart-title { font-size: 0.85rem; font-weight: 600; }
+    .chart-sub { font-size: 0.72rem; color: var(--muted); margin-top: 2px; margin-bottom: 16px; }
+    .chart-container { position: relative; }
+
+    .legend { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 0.73rem; color: var(--muted); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .legend-val { color: var(--text); font-weight: 600; }
+
+    /* ── Trend ── */
+    .trend-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; margin-bottom: 20px; }
+    .trend-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 16px; flex-wrap: wrap; gap: 8px; }
+
+    /* ── KCR row ── */
+    .kcr-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+    .kcr-gauge-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 10px; margin-top: 14px; }
+    .gauge-item { text-align: center; }
+    .gauge-canvas { display: block; width: 100%; height: 115px; }
+
+    /* ── Table ── */
+    .table-card { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+    .table-header-row { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .table-scroll { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; }
+    th {
+      padding: 9px 14px; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em;
+      color: var(--muted); text-align: left; border-bottom: 1px solid var(--border);
+      background: var(--surface2); font-weight: 500; white-space: nowrap;
+    }
+    td { padding: 10px 14px; font-size: 0.78rem; border-bottom: 1px solid var(--border); color: var(--text); }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--surface2); }
+
+    .badge {
+      display: inline-flex; align-items: center;
+      padding: 3px 9px; border-radius: 999px; font-size: 0.68rem; font-weight: 700; white-space: nowrap;
+    }
+    .badge-happy     { background: rgba(16,185,129,.15); color: var(--positive); }
+    .badge-unhappy   { background: rgba(239,68,68,.15);  color: var(--negative); }
+    .badge-neutral   { background: rgba(245,158,11,.15); color: var(--neutral-col); }
+    .badge-promoter  { background: rgba(16,185,129,.15); color: var(--positive); }
+    .badge-passive   { background: rgba(122,143,176,.15); color: var(--muted); }
+    .badge-detractor { background: rgba(239,68,68,.15);  color: var(--negative); }
+
+    .feedback-cell {
+      font-size: 0.75rem; font-style: italic; color: var(--muted);
+      max-width: 260px; min-width: 180px; line-height: 1.5;
+    }
+    .kcr-mini { display: flex; gap: 3px; }
+    .kd {
+      width: 22px; height: 22px; border-radius: 4px;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 0.66rem; font-weight: 700;
+    }
+    .kd-5 { background: rgba(16,185,129,.22); color: #34d399; }
+    .kd-4 { background: rgba(16,185,129,.1);  color: #6ee7b7; }
+    .kd-3 { background: rgba(245,158,11,.15); color: var(--neutral-col); }
+    .kd-2 { background: rgba(239,68,68,.1);   color: #fca5a5; }
+    .kd-1 { background: rgba(239,68,68,.22);  color: var(--negative); }
+
+    /* ── Light mode card/badge adjustments ── */
+    html[data-theme="light"] .kpi-card  { box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    html[data-theme="light"] .chart-card,
+    html[data-theme="light"] .trend-card,
+    html[data-theme="light"] .kcr-card,
+    html[data-theme="light"] .table-card { box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    html[data-theme="light"] .badge-happy    { background: rgba(5,150,105,.12);  color: #065f46; }
+    html[data-theme="light"] .badge-unhappy  { background: rgba(220,38,38,.1);   color: #991b1b; }
+    html[data-theme="light"] .badge-neutral  { background: rgba(217,119,6,.12);  color: #92400e; }
+    html[data-theme="light"] .badge-promoter { background: rgba(5,150,105,.12);  color: #065f46; }
+    html[data-theme="light"] .badge-passive  { background: rgba(100,116,139,.12); color: #334155; }
+    html[data-theme="light"] .badge-detractor{ background: rgba(220,38,38,.1);   color: #991b1b; }
+    html[data-theme="light"] .chs-rules { background: #f8fafc; border-left-color: var(--accent); }
+
+    /* ── CHS Rule tooltip ── */
+    .chs-rules {
+      margin-top: 12px; padding: 10px 12px;
+      background: var(--surface2); border-radius: 8px; border-left: 3px solid var(--accent);
+      font-size: 0.7rem; color: var(--muted); line-height: 1.8;
+    }
+    .chs-rules strong { font-weight: 600; }
+    .r-pos { color: var(--positive); }
+    .r-neu { color: var(--neutral-col); }
+    .r-neg { color: var(--negative); }
+
+    /* ── Responsive ── */
+    /* ── AI Insight Panel ── */
+    .ai-panel {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 12px; margin-bottom: 20px; overflow: hidden;
+      box-shadow: 0 0 0 1px transparent;
+    }
+    .ai-panel-header {
+      padding: 13px 20px; display: flex; align-items: center; gap: 12px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(90deg, rgba(167,139,250,.08) 0%, transparent 60%);
+    }
+    .ai-panel-icon {
+      width: 30px; height: 30px; border-radius: 7px; flex-shrink: 0;
+      background: linear-gradient(135deg,#a78bfa,#3b82f6);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 0.85rem; color: #fff; font-weight: 800; letter-spacing: -0.5px;
+    }
+    .ai-panel-title  { font-size: 0.88rem; font-weight: 700; }
+    .ai-panel-sub    { font-size: 0.7rem; color: var(--muted); margin-top: 1px; }
+    .ai-panel-meta   { margin-left: auto; font-size: 0.68rem; color: var(--muted); white-space: nowrap; }
+    .ai-panel-body   { display: grid; grid-template-columns: repeat(3,1fr); }
+    .ai-col          { padding: 16px 20px; border-right: 1px solid var(--border); }
+    .ai-col:last-child { border-right: none; }
+    .ai-col-header   { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+    .ai-col-badge    { width: 22px; height: 22px; border-radius: 5px; display: flex; align-items: center; justify-content: center; font-size: 0.72rem; flex-shrink: 0; }
+    .ai-col-title    { font-size: 0.78rem; font-weight: 700; }
+    .ai-col.issues   .ai-col-badge  { background: rgba(245,158,11,.15); color: var(--accent); }
+    .ai-col.issues   .ai-col-title  { color: var(--accent); }
+    .ai-col.drivers  .ai-col-badge  { background: rgba(59,130,246,.15); color: var(--blue); }
+    .ai-col.drivers  .ai-col-title  { color: var(--blue); }
+    .ai-col.risks    .ai-col-badge  { background: rgba(239,68,68,.15); color: var(--negative); }
+    .ai-col.risks    .ai-col-title  { color: var(--negative); }
+    .ai-list         { display: flex; flex-direction: column; gap: 10px; }
+    .ai-item         { display: flex; gap: 9px; align-items: flex-start; }
+    .ai-dot          { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; margin-top: 4px; }
+    .ai-dot.high     { background: var(--negative); box-shadow: 0 0 0 2px rgba(239,68,68,.2); }
+    .ai-dot.medium   { background: var(--accent);   box-shadow: 0 0 0 2px rgba(245,158,11,.2); }
+    .ai-dot.low      { background: var(--positive); box-shadow: 0 0 0 2px rgba(16,185,129,.2); }
+    .ai-item-text    { font-size: 0.755rem; color: var(--text); line-height: 1.5; }
+    .ai-item-text em { font-style: normal; font-weight: 700; }
+    .ai-empty        { font-size: 0.755rem; color: var(--muted); font-style: italic; }
+    @media (max-width: 900px) { .ai-panel-body { grid-template-columns: 1fr; } .ai-col { border-right: none; border-bottom: 1px solid var(--border); } .ai-col:last-child { border-bottom: none; } }
+
+    /* ── Text Analytics ── */
+    .sentiment-kpi-row { display: grid; grid-template-columns: repeat(3,1fr); gap: 14px; margin-bottom: 20px; }
+    .sentiment-mini {
+      background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px 20px; display: flex; align-items: center; gap: 14px;
+    }
+    html[data-theme="light"] .sentiment-mini { box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    .sent-icon { font-size: 1.7rem; flex-shrink: 0; line-height: 1; }
+    .sent-info { flex: 1; min-width: 0; }
+    .sent-label { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 5px; }
+    .sent-value { font-size: 1.9rem; font-weight: 800; line-height: 1; }
+    .sent-count { font-size: 0.72rem; color: var(--muted); margin-top: 5px; }
+    .sent-bar { height: 3px; border-radius: 2px; background: var(--border); margin-top: 10px; overflow: hidden; }
+    .sent-bar-fill { height: 100%; border-radius: 2px; transition: width .5s; }
+    .text-row { display: grid; grid-template-columns: 1.5fr 1fr; gap: 14px; margin-bottom: 20px; }
+    #word-cloud-canvas { display: block; width: 100%; height: 270px; }
+
+    @media (max-width: 1100px) { .charts-row { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 900px)  {
+      .kpi-row, .kcr-row, .sentiment-kpi-row { grid-template-columns: 1fr 1fr; }
+      .charts-row, .text-row { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 540px)  { main { padding: 16px; } header { padding: 14px 16px; } .kpi-row { grid-template-columns: 1fr 1fr; } }
+  </style>
+</head>
+<body>
+<header>
+  <div class="header-brand">
+    <div class="brand-icon">🍽</div>
+    <div>
+      <div class="brand-name">The Grand Table</div>
+      <div class="brand-sub">Customer Experience Dashboard</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div class="filters">
+      <button class="filter-btn" data-days="7">7D</button>
+      <button class="filter-btn active" data-days="30">30D</button>
+      <button class="filter-btn" data-days="90">90D</button>
+      <button class="filter-btn" data-days="">All</button>
+    </div>
+    <span class="theme-icon" id="theme-icon">🌙</span>
+    <button class="theme-toggle" id="theme-toggle" title="Toggle light / dark mode" aria-label="Toggle theme"></button>
+  </div>
+</header>
+
+<main>
+  <!-- KPI Row -->
+  <div class="kpi-row">
+    <div class="kpi-card nps-card">
+      <div class="kpi-label">Net Promoter Score</div>
+      <div class="kpi-value" id="nps-score">—</div>
+      <div class="kpi-sub" id="nps-sub"></div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="nps-bar"></div></div>
+    </div>
+    <div class="kpi-card chs-card">
+      <div class="kpi-label">Customer Happiness Score</div>
+      <div class="kpi-value" id="chs-score">—</div>
+      <div class="kpi-sub" id="chs-sub"></div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="chs-bar"></div></div>
+    </div>
+    <div class="kpi-card total-card">
+      <div class="kpi-label">Total Surveys</div>
+      <div class="kpi-value" id="total-surveys" style="color:var(--accent)">—</div>
+      <div class="kpi-sub" id="total-sub"></div>
+    </div>
+    <div class="kpi-card kcr-card">
+      <div class="kpi-label">Avg KCR Score</div>
+      <div class="kpi-value" id="avg-kcr">—</div>
+      <div class="kpi-sub">out of 5.0 across all dimensions</div>
+      <div class="kpi-bar"><div class="kpi-bar-fill" id="kcr-bar" style="background:#a78bfa"></div></div>
+    </div>
+  </div>
+
+  <!-- AI Insight Panel -->
+  <div class="ai-panel">
+    <div class="ai-panel-header">
+      <div class="ai-panel-icon">AI</div>
+      <div>
+        <div class="ai-panel-title">AI Insights</div>
+        <div class="ai-panel-sub">Auto-generated from survey data · updates with filter</div>
+      </div>
+      <div class="ai-panel-meta" id="ai-meta"></div>
+    </div>
+    <div class="ai-panel-body">
+      <div class="ai-col issues">
+        <div class="ai-col-header">
+          <div class="ai-col-badge">⚠</div>
+          <div class="ai-col-title">Top Issues Today</div>
+        </div>
+        <div class="ai-list" id="ai-issues"></div>
+      </div>
+      <div class="ai-col drivers">
+        <div class="ai-col-header">
+          <div class="ai-col-badge">↑</div>
+          <div class="ai-col-title">Biggest NPS Drivers</div>
+        </div>
+        <div class="ai-list" id="ai-drivers"></div>
+      </div>
+      <div class="ai-col risks">
+        <div class="ai-col-header">
+          <div class="ai-col-badge">◈</div>
+          <div class="ai-col-title">Emerging Risks</div>
+        </div>
+        <div class="ai-list" id="ai-risks"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Charts Row -->
+  <div class="charts-row">
+    <!-- NPS Donut -->
+    <div class="chart-card">
+      <div class="chart-title">NPS Breakdown</div>
+      <div class="chart-sub">Promoters (9–10) · Passives (7–8) · Detractors (0–6)</div>
+      <div class="chart-container" style="height:200px"><canvas id="npsChart"></canvas></div>
+      <div class="legend" id="nps-legend"></div>
+    </div>
+    <!-- CHS Donut -->
+    <div class="chart-card">
+      <div class="chart-title">CHS Breakdown</div>
+      <div class="chart-sub">Based on 6 KCR evaluation per visit</div>
+      <div class="chart-container" style="height:200px"><canvas id="chsChart"></canvas></div>
+      <div class="legend" id="chs-legend"></div>
+      <div class="chs-rules">
+        <span class="r-pos"><strong>Happy</strong></span> — all 6 KCRs scored 4 or 5<br>
+        <span class="r-neu"><strong>Neutral</strong></span> — at least one KCR is 3, rest are 4–5<br>
+        <span class="r-neg"><strong>Unhappy</strong></span> — any KCR scored 1 or 2
+      </div>
+    </div>
+    <!-- KCR Radar -->
+    <div class="chart-card">
+      <div class="chart-title">KCR Radar</div>
+      <div class="chart-sub">Average score per dimension (scale 1–5)</div>
+      <div class="chart-container" style="height:260px"><canvas id="kcrChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Trend -->
+  <div class="trend-card">
+    <div class="trend-header">
+      <div>
+        <div class="chart-title">Score Trends</div>
+        <div class="chart-sub">Weekly NPS (−100 to +100) and CHS % (0–100)</div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#3b82f6"></div>NPS</div>
+        <div class="legend-item"><div class="legend-dot" style="background:#f59e0b"></div>CHS</div>
+      </div>
+    </div>
+    <div class="chart-container" style="height:220px"><canvas id="trendChart"></canvas></div>
+  </div>
+
+  <!-- KCR Detail -->
+  <div class="kcr-row">
+    <div class="chart-card">
+      <div class="chart-title">KCR Performance</div>
+      <div class="chart-sub">Top Box score — % of surveys rated 4 or 5 per dimension</div>
+      <div class="kcr-gauge-grid" id="kcr-gauge-grid"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">KCR Score Distribution</div>
+      <div class="chart-sub">Stacked count of scores 1–5 per dimension</div>
+      <div class="chart-container" style="height:280px"><canvas id="kcrBarChart"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Text Analytics -->
+  <div class="section-label" style="margin-top:4px">Text Analytics</div>
+
+  <div class="sentiment-kpi-row">
+    <div class="sentiment-mini">
+      <div class="sent-icon">😊</div>
+      <div class="sent-info">
+        <div class="sent-label">Positive Sentiment</div>
+        <div class="sent-value" id="sent-pos-pct" style="color:var(--positive)">—</div>
+        <div class="sent-count" id="sent-pos-count"></div>
+        <div class="sent-bar"><div class="sent-bar-fill" id="sent-pos-bar" style="background:var(--positive)"></div></div>
+      </div>
+    </div>
+    <div class="sentiment-mini">
+      <div class="sent-icon">😐</div>
+      <div class="sent-info">
+        <div class="sent-label">Neutral Sentiment</div>
+        <div class="sent-value" id="sent-neu-pct" style="color:var(--neutral-col)">—</div>
+        <div class="sent-count" id="sent-neu-count"></div>
+        <div class="sent-bar"><div class="sent-bar-fill" id="sent-neu-bar" style="background:var(--neutral-col)"></div></div>
+      </div>
+    </div>
+    <div class="sentiment-mini">
+      <div class="sent-icon">😞</div>
+      <div class="sent-info">
+        <div class="sent-label">Negative Sentiment</div>
+        <div class="sent-value" id="sent-neg-pct" style="color:var(--negative)">—</div>
+        <div class="sent-count" id="sent-neg-count"></div>
+        <div class="sent-bar"><div class="sent-bar-fill" id="sent-neg-bar" style="background:var(--negative)"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="text-row">
+    <div class="chart-card">
+      <div class="chart-title">Word Cloud</div>
+      <div class="chart-sub">Sized by frequency &nbsp;·&nbsp; <span style="color:var(--positive);font-style:normal">▪ positive</span> &nbsp;<span style="color:var(--negative)">▪ negative</span> &nbsp;<span style="color:var(--blue)">▪ topic</span></div>
+      <canvas id="word-cloud-canvas"></canvas>
+    </div>
+    <div class="chart-card">
+      <div class="chart-title">Top Keywords</div>
+      <div class="chart-sub">Most mentioned words across all feedback</div>
+      <div class="chart-container" style="height:270px"><canvas id="keywordsChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="trend-card" style="margin-bottom:20px">
+    <div class="trend-header">
+      <div>
+        <div class="chart-title">Sentiment Trend</div>
+        <div class="chart-sub">Weekly text sentiment score (% positive − % negative)</div>
+      </div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:#a78bfa"></div>Sentiment Score</div>
+      </div>
+    </div>
+    <div class="chart-container" style="height:190px"><canvas id="sentimentTrendChart"></canvas></div>
+  </div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div class="table-header-row">
+      <div>
+        <div class="chart-title">Recent Surveys</div>
+        <div class="chart-sub">Latest 20 responses · H = Hospitality · Cl = Cleanliness · Sp = Speed · Qu = Quality · Ac = Accuracy · Va = Value</div>
+      </div>
+    </div>
+    <div class="table-scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>NPS</th>
+            <th>NPS Cat.</th>
+            <th>H</th><th>Cl</th><th>Sp</th><th>Qu</th><th>Ac</th><th>Va</th>
+            <th>CHS</th>
+            <th>Feedback</th>
+          </tr>
+        </thead>
+        <tbody id="survey-table"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<script>
+// ─── Seeded RNG (LCG) ─────────────────────────────────────────────────────────
+function makeSeed(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = (Math.imul(1664525, s) + 1013904223) | 0;
+    return (s >>> 0) / 4294967296;
+  };
+}
+const rng = makeSeed(0xDEADBEEF);
+
+function weightedChoice(weights) {
+  const total = weights.reduce((a, b) => a + b, 0);
+  let r = rng() * total;
+  for (let i = 0; i < weights.length; i++) { r -= weights[i]; if (r <= 0) return i; }
+  return weights.length - 1;
+}
+
+// ─── Generate Mock Surveys ────────────────────────────────────────────────────
+const KCR_WEIGHTS = [1, 3, 10, 36, 50];        // scores 1–5, skewed positive
+const NPS_WEIGHTS = [1,.5,.5,1,1,2,4,9,14,33,34]; // scores 0–10
+
+const FEEDBACK = {
+  happy: [
+    "Absolutely loved every bite — the lamb was cooked to perfection!",
+    "Warmest welcome I've ever had at a restaurant. Will definitely be back.",
+    "Lightning-fast service without ever compromising on quality. Truly impressive.",
+    "Every dish arrived exactly as described on the menu. No surprises, just delights.",
+    "Outstanding value for the quality. Felt like fine dining at half the price.",
+    "The table was spotless and the ambiance was just right for a date night.",
+    "Our server remembered my wife's dietary restriction without being reminded. Incredible.",
+    "Portions were generous and the flavors were bold — exactly what I was craving.",
+    "Cleanest restaurant I've visited in years. The details here really matter.",
+    "The manager came by personally to check on us. Made the whole evening special.",
+    "Best steak in the city, no contest. Worth every single penny.",
+    "We brought our kids and the staff treated them like little VIPs.",
+    "Food arrived piping hot and plated beautifully — Instagram-worthy without the wait.",
+    "The sommelier's pairing recommendation was absolutely spot-on.",
+    "Seamless experience from reservation to dessert. A true benchmark for hospitality.",
+    "Couldn't find a single thing to complain about all evening. That's rare!",
+    "The tiramisu alone is worth making the trip. Absolutely unbelievable.",
+    "Never waited more than five minutes for anything the whole evening.",
+    "The bread was freshly baked and refilled without us even asking.",
+    "Celebrating our anniversary here was the right call — staff made it unforgettable.",
+  ],
+  neutral: [
+    "Food was great but the wait was a bit longer than we expected on a Tuesday.",
+    "Loved the food. Service felt slightly rushed during the peak dinner hours.",
+    "Solid dishes, though the portion size felt small for the price point.",
+    "Ambiance is lovely but the lighting near the back tables is too dim to read the menu.",
+    "Staff were friendly, but they seemed understaffed on a busy Friday night.",
+    "Dishes were tasty — one order did come out noticeably cooler than the rest.",
+    "Nice experience overall, though the parking situation made arrival stressful.",
+    "Good food and friendly service, but the noise level made conversation difficult.",
+    "Dessert menu felt limited compared to the very strong main course selection.",
+    "Very good overall. The bread basket could be replenished a bit more proactively.",
+    "Everything was fine — nothing blew us away but nothing disappointed either.",
+    "Good quality food, though one dish was noticeably saltier than the others.",
+    "The restaurant was clean but the soap dispenser in the restroom was empty.",
+    "Starter was excellent; the main took a while and arrived lukewarm.",
+    "Would return, but the host seemed distracted when we arrived for our reservation.",
+  ],
+  unhappy: [
+    "Waited 45 minutes for our main course with no explanation or apology from staff.",
+    "The chicken was undercooked. Had to send it back — very disappointing on a birthday.",
+    "Server got our order wrong twice. Frustrating experience overall.",
+    "Tables were sticky and one menu was visibly stained — not acceptable.",
+    "Felt completely ignored after being seated. Had to flag someone down repeatedly.",
+    "Food was overpriced for the portion size and quality we actually received.",
+    "The pasta was cold in the center, like it had been sitting out for a while.",
+    "Restroom was dirty throughout our entire visit. Raises real food safety concerns.",
+    "Wrong items delivered, a side dish was missing, and the bill had an error.",
+    "Despite flagging multiple issues, the manager never came by. Truly disappointing.",
+    "A dish came out with an ingredient I clearly stated I was allergic to.",
+    "The noise level was unbearable — we genuinely could not hold a conversation.",
+    "Our reservation wasn't honored and we waited 25 minutes past our booking time.",
+    "The fish had an off smell. Sent it back and lost confidence in the kitchen.",
+    "Staff seemed undertrained — three different people gave us conflicting information.",
+  ],
+};
+
+function inlineCHSCat(h, cl, sp, qu, ac, va) {
+  const ks = [h, cl, sp, qu, ac, va];
+  if (ks.some(k => k <= 2)) return 'unhappy';
+  if (ks.some(k => k === 3)) return 'neutral';
+  return 'happy';
+}
+
+function generateSurveys(n = 280) {
+  const now = new Date();
+  const surveys = [];
+  for (let i = 0; i < n; i++) {
+    const daysAgo = Math.floor(rng() * 90);
+    const d = new Date(now);
+    d.setDate(d.getDate() - daysAgo);
+    d.setHours(Math.floor(rng() * 14) + 10, Math.floor(rng() * 60));
+    const h = weightedChoice(KCR_WEIGHTS) + 1, cl = weightedChoice(KCR_WEIGHTS) + 1,
+          sp = weightedChoice(KCR_WEIGHTS) + 1, qu = weightedChoice(KCR_WEIGHTS) + 1,
+          ac = weightedChoice(KCR_WEIGHTS) + 1, va = weightedChoice(KCR_WEIGHTS) + 1;
+    const cat = inlineCHSCat(h, cl, sp, qu, ac, va);
+    const pool = FEEDBACK[cat];
+    const feedback = pool[Math.floor(rng() * pool.length)];
+    surveys.push({
+      id: i + 1, date: d,
+      nps: weightedChoice(NPS_WEIGHTS),
+      hospitality: h, cleanliness: cl, speed: sp,
+      quality: qu, accuracy: ac, value: va,
+      feedback,
+    });
+  }
+  return surveys.sort((a, b) => b.date - a.date);
+}
+
+const ALL = generateSurveys();
+
+// ─── Business Logic ───────────────────────────────────────────────────────────
+const KCR_KEYS = ['hospitality','cleanliness','speed','quality','accuracy','value'];
+
+function chsCat(s) {
+  const ks = KCR_KEYS.map(k => s[k]);
+  if (ks.some(k => k <= 2)) return 'unhappy';
+  if (ks.some(k => k === 3)) return 'neutral';
+  return 'happy';
+}
+function npsCat(n) {
+  return n >= 9 ? 'promoter' : n >= 7 ? 'passive' : 'detractor';
+}
+
+function calcMetrics(surveys) {
+  const n = surveys.length;
+  if (!n) return null;
+  const promoters   = surveys.filter(s => s.nps >= 9).length;
+  const passives    = surveys.filter(s => s.nps >= 7 && s.nps <= 8).length;
+  const detractors  = surveys.filter(s => s.nps <= 6).length;
+  const nps         = Math.round((promoters - detractors) / n * 100);
+  const happy       = surveys.filter(s => chsCat(s) === 'happy').length;
+  const neutral     = surveys.filter(s => chsCat(s) === 'neutral').length;
+  const unhappy     = surveys.filter(s => chsCat(s) === 'unhappy').length;
+  const chs         = Math.round(happy / n * 100);
+  // Average score (1–5) — used for radar chart and KPI card
+  const avgScore = k => surveys.reduce((sum, s) => sum + s[k], 0) / n;
+  const kcrScore = Object.fromEntries(KCR_KEYS.map(k => [k, avgScore(k)]));
+  kcrScore.avg = KCR_KEYS.reduce((sum, k) => sum + kcrScore[k], 0) / 6;
+  // Top Box % — % of surveys scoring 4 or 5 per KCR
+  const topBox = k => Math.round(surveys.filter(s => s[k] >= 4).length / n * 100);
+  const kcr = Object.fromEntries(KCR_KEYS.map(k => [k, topBox(k)]));
+  return { n, nps, promoters, passives, detractors, chs, happy, neutral, unhappy, kcr, kcrScore };
+}
+
+function calcTrend(surveys) {
+  const map = {};
+  surveys.forEach(s => {
+    const d = new Date(s.date); d.setHours(0,0,0,0);
+    d.setDate(d.getDate() - d.getDay()); // week start (Sun)
+    const k = d.toISOString().slice(0,10);
+    if (!map[k]) map[k] = [];
+    map[k].push(s);
+  });
+  return Object.keys(map).sort().slice(-13).map(week => {
+    const m = calcMetrics(map[week]);
+    return { week, nps: m?.nps ?? null, chs: m?.chs ?? null };
+  });
+}
+
+function filterSurveys(days) {
+  if (!days) return ALL;
+  const cut = new Date(); cut.setDate(cut.getDate() - days);
+  return ALL.filter(s => s.date >= cut);
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+const fmtDate = d => d.toLocaleDateString('en-US', { month:'short', day:'numeric', year:'2-digit' });
+const sign    = v => v > 0 ? `+${v}` : `${v}`;
+
+function scoreColor(v) {
+  if (v >= 50) return '#10b981';
+  if (v >= 20) return '#6ee7b7';
+  if (v >= 0)  return '#f59e0b';
+  if (v >= -20) return '#fb923c';
+  return '#ef4444';
+}
+function chsColor(v) { // v is 0–100%
+  if (v >= 80) return '#10b981';
+  if (v >= 65) return '#6ee7b7';
+  if (v >= 50) return '#f59e0b';
+  if (v >= 35) return '#fb923c';
+  return '#ef4444';
+}
+function kcrColor(v) {
+  if (v >= 4.5) return '#10b981';
+  if (v >= 4.0) return '#6ee7b7';
+  if (v >= 3.5) return '#f59e0b';
+  if (v >= 3.0) return '#fb923c';
+  return '#ef4444';
+}
+
+// ─── Theme helpers ────────────────────────────────────────────────────────────
+const cssVar = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ─── Text Analytics ───────────────────────────────────────────────────────────
+const STOP_WORDS = new Set([
+  'the','a','an','is','it','was','were','we','our','us','i','my','to','in','of',
+  'and','or','but','at','on','for','with','as','be','been','have','had','this',
+  'that','they','them','there','when','where','what','who','how','all','any','by',
+  'no','not','so','if','up','out','about','than','into','also','just','like',
+  'very','too','from','would','could','should','will','did','do','does','made',
+  'come','got','went','one','two','three','its','which','he','she','her','his',
+  'me','you','your','their','more','some','even','much','every','ever','really',
+  'truly','never','always','here','has','can','over','without','each','while',
+  'across','came','felt','felt','upon','feel','back','since','though','still',
+  'get','let','put','set','bit','bit','bit','say','said','went',
+]);
+
+const POSITIVE_WORDS = new Set([
+  'loved','love','wonderful','perfect','outstanding','amazing','excellent','great',
+  'fantastic','incredible','impressive','exceptional','delicious','warmest','spotless',
+  'seamless','brilliant','unforgettable','generous','beautifully','fresh','freshly',
+  'benchmark','special','best','worth','flawless','attentive','friendly','clean',
+  'accurate','piping','nailed','rare','right','warm','smooth','quick','fast',
+  'impeccable','memorable','superb','compliment','delight','perfectly','enjoyed',
+  'thrilled','pleased','impressed','recommend','genuine','vibrant','refreshing',
+]);
+
+const NEGATIVE_WORDS = new Set([
+  'waited','wait','undercooked','wrong','dirty','sticky','stained','ignored',
+  'overpriced','cold','missing','error','disappointing','disappointed','unbearable',
+  'terrible','horrible','worst','frustrating','frustrated','contaminated',
+  'allergic','allergy','smell','unacceptable','unsafe','issue','issues','problem',
+  'problems','concerns','undertrained','conflicting','rude','slow','noisy','noise',
+  'delayed','neglected','chaotic','broken','incorrect','inaccurate','awful',
+  'dreadful','appalling','disorganized','complaint','complaints','sending','sent',
+]);
+
+function tokenize(text) {
+  return text.toLowerCase().replace(/[^a-z\s]/g, ' ').split(/\s+/)
+    .filter(w => w.length > 2 && !STOP_WORDS.has(w));
+}
+
+function textSentiment(text) {
+  const words = tokenize(text);
+  let pos = 0, neg = 0;
+  words.forEach(w => {
+    if (POSITIVE_WORDS.has(w)) pos++;
+    if (NEGATIVE_WORDS.has(w)) neg++;
+  });
+  const score = pos - neg;
+  return score > 0 ? 'positive' : score < 0 ? 'negative' : 'neutral';
+}
+
+function wordFrequencies(surveys) {
+  const freq = {};
+  surveys.forEach(s => {
+    tokenize(s.feedback).forEach(w => { freq[w] = (freq[w] || 0) + 1; });
+  });
+  return Object.entries(freq).sort((a, b) => b[1] - a[1]);
+}
+
+function calcTextMetrics(surveys) {
+  const n = surveys.length;
+  if (!n) return null;
+  let pos = 0, neg = 0, neu = 0;
+  surveys.forEach(s => {
+    const sent = textSentiment(s.feedback);
+    if (sent === 'positive') pos++;
+    else if (sent === 'negative') neg++;
+    else neu++;
+  });
+  return {
+    n, pos, neg, neu,
+    posPct: Math.round(pos / n * 100),
+    negPct: Math.round(neg / n * 100),
+    neuPct: Math.round(neu / n * 100),
+    words: wordFrequencies(surveys),
+  };
+}
+
+function calcSentimentTrend(surveys) {
+  const map = {};
+  surveys.forEach(s => {
+    const d = new Date(s.date); d.setHours(0,0,0,0);
+    d.setDate(d.getDate() - d.getDay());
+    const k = d.toISOString().slice(0,10);
+    if (!map[k]) map[k] = [];
+    map[k].push(s);
+  });
+  return Object.keys(map).sort().slice(-13).map(week => {
+    const ws = map[week];
+    const m = calcTextMetrics(ws);
+    return { week, score: m ? Math.round((m.pos - m.neg) / m.n * 100) : null };
+  });
+}
+
+function wordColor(word) {
+  const posP = ['#10b981','#34d399','#059669'];
+  const negP = ['#ef4444','#f87171','#dc2626'];
+  const neuP = ['#3b82f6','#60a5fa','#a78bfa','#06b6d4','#f59e0b'];
+  let h = 0; for (const c of word) h = (h * 31 + c.charCodeAt(0)) | 0;
+  const i = Math.abs(h);
+  if (POSITIVE_WORDS.has(word)) return posP[i % posP.length];
+  if (NEGATIVE_WORDS.has(word)) return negP[i % negP.length];
+  return neuP[i % neuP.length];
+}
+
+// ─── Chart defaults ───────────────────────────────────────────────────────────
+Chart.defaults.color = cssVar('--muted');
+Chart.defaults.borderColor = cssVar('--border');
+Chart.defaults.font.family = 'system-ui,-apple-system,sans-serif';
+
+// Center-text plugin for donuts
+const centerTextPlugin = {
+  id: 'centerText',
+  afterDraw(chart) {
+    const cfg = chart.config.options?.plugins?.centerText;
+    if (!cfg) return;
+    const { ctx, chartArea: { left, right, top, bottom } } = chart;
+    const cx = (left + right) / 2, cy = (top + bottom) / 2;
+    ctx.save();
+    ctx.font = `800 1.5rem system-ui`;
+    ctx.fillStyle = cfg.color || '#e8edf5';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(cfg.text ?? '', cx, cy - 8);
+    ctx.font = `400 0.7rem system-ui`;
+    ctx.fillStyle = '#7a8fb0';
+    ctx.fillText(cfg.sub ?? '', cx, cy + 12);
+    ctx.restore();
+  }
+};
+Chart.register(centerTextPlugin);
+
+// ─── Create Charts ────────────────────────────────────────────────────────────
+function makeDonut(id, colors, labels) {
+  return new Chart(document.getElementById(id), {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{ data: [1,1,1], backgroundColor: colors, borderWidth: 0, hoverOffset: 5 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      cutout: '74%',
+      plugins: {
+        legend: { display: false },
+        centerText: { text: '—', sub: '' },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const tot = ctx.dataset.data.reduce((a,b)=>a+b,0);
+              return ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw/tot*100)}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+const npsChart = makeDonut('npsChart', ['#10b981','#7a8fb0','#ef4444'], ['Promoters','Passives','Detractors']);
+const chsChart = makeDonut('chsChart', ['#10b981','#f59e0b','#ef4444'], ['Happy','Neutral','Unhappy']);
+
+const kcrChart = new Chart(document.getElementById('kcrChart'), {
+  type: 'radar',
+  data: {
+    labels: ['Hospitality','Cleanliness','Speed','Quality','Accuracy','Value'],
+    datasets: [{
+      label: 'Avg', data: [0,0,0,0,0,0],
+      backgroundColor: 'rgba(59,130,246,.12)',
+      borderColor: '#3b82f6', pointBackgroundColor: '#3b82f6',
+      pointRadius: 4, borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      r: {
+        min: 1, max: 5, ticks: { stepSize:1, backdropColor:'transparent', font:{size:10} },
+        grid: { color: () => cssVar('--border') }, angleLines: { color: () => cssVar('--border') },
+        pointLabels: { font:{size:11}, color:'#7a8fb0' }
+      }
+    },
+    plugins: { legend: { display: false } }
+  }
+});
+
+const trendChart = new Chart(document.getElementById('trendChart'), {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [
+      { label:'NPS', data:[], borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,.07)', tension:.35, fill:true, pointRadius:4, pointHoverRadius:6, borderWidth:2 },
+      { label:'CHS', data:[], borderColor:'#f59e0b', backgroundColor:'rgba(245,158,11,.07)', tension:.35, fill:true, pointRadius:4, pointHoverRadius:6, borderWidth:2 }
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode:'index', intersect: false },
+    scales: {
+      x: { grid:{ color: () => cssVar('--chart-grid') }, ticks:{ font:{size:11} } },
+      y: {
+        min: -100, max: 100,
+        grid: { color: ctx => ctx.tick.value === 0 ? cssVar('--chart-grid-zero') : cssVar('--chart-grid') },
+        ticks: { font:{size:11} }
+      }
+    },
+    plugins: { legend: { display: false } }
+  }
+});
+
+const kcrBarChart = new Chart(document.getElementById('kcrBarChart'), {
+  type: 'bar',
+  data: {
+    labels: ['Hospitality','Cleanliness','Speed','Quality','Accuracy','Value'],
+    datasets: [
+      { label:'Score 1', data:[0,0,0,0,0,0], backgroundColor:'#ef4444', stack:'s', borderWidth:0 },
+      { label:'Score 2', data:[0,0,0,0,0,0], backgroundColor:'#fca5a5', stack:'s', borderWidth:0 },
+      { label:'Score 3', data:[0,0,0,0,0,0], backgroundColor:'#f59e0b', stack:'s', borderWidth:0 },
+      { label:'Score 4', data:[0,0,0,0,0,0], backgroundColor:'#6ee7b7', stack:'s', borderWidth:0 },
+      { label:'Score 5', data:[0,0,0,0,0,0], backgroundColor:'#10b981', stack:'s', borderWidth:0 },
+    ]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { stacked:true, grid:{ display:false }, ticks:{ font:{size:10}, maxRotation:30 } },
+      y: { stacked:true, grid:{ color: () => cssVar('--chart-grid') }, ticks:{ font:{size:10} } }
+    },
+    plugins: {
+      legend: { display: true, position:'bottom', labels:{ boxWidth:10, font:{size:10}, padding:8, color:'#7a8fb0' } }
+    }
+  }
+});
+
+const keywordsChart = new Chart(document.getElementById('keywordsChart'), {
+  type: 'bar',
+  data: {
+    labels: [],
+    datasets: [{
+      data: [], backgroundColor: [], borderWidth: 0, borderRadius: 4,
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    responsive: true, maintainAspectRatio: false,
+    scales: {
+      x: { grid:{ color: () => cssVar('--chart-grid') }, ticks:{ font:{size:10} } },
+      y: { grid:{ display:false }, ticks:{ font:{size:11} } }
+    },
+    plugins: { legend:{ display:false } }
+  }
+});
+
+const sentimentTrendChart = new Chart(document.getElementById('sentimentTrendChart'), {
+  type: 'line',
+  data: {
+    labels: [],
+    datasets: [{
+      label: 'Sentiment', data: [],
+      borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,.08)',
+      tension: 0.35, fill: true, pointRadius: 4, borderWidth: 2,
+    }]
+  },
+  options: {
+    responsive: true, maintainAspectRatio: false,
+    interaction: { mode:'index', intersect:false },
+    scales: {
+      x: { grid:{ color: () => cssVar('--chart-grid') }, ticks:{ font:{size:11} } },
+      y: {
+        min: -100, max: 100,
+        grid: { color: ctx => ctx.tick.value === 0 ? cssVar('--chart-grid-zero') : cssVar('--chart-grid') },
+        ticks: { font:{size:11} }
+      }
+    },
+    plugins: { legend:{ display:false } }
+  }
+});
+
+// ─── Gauge Drawing ───────────────────────────────────────────────────────────
+function drawGauge(canvas, pct, label, color) {
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.offsetWidth, H = canvas.offsetHeight;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+
+  const cx = W / 2;
+  const cy = H - 26;                          // leave room for label at bottom
+  const r  = Math.min(W / 2 - 12, cy - 8);
+  const lw = Math.max(10, r * 0.18);
+  const SA = Math.PI, EA = 2 * Math.PI;       // left → top → right
+
+  const trackColor = cssVar('--gauge-track');
+
+  // Track
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, SA, EA);
+  ctx.strokeStyle = trackColor;
+  ctx.lineWidth = lw;
+  ctx.lineCap = 'butt';
+  ctx.stroke();
+
+  // End caps (round the track ends)
+  [SA, EA].forEach(a => {
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(a) * r, cy + Math.sin(a) * r, lw / 2, 0, 2 * Math.PI);
+    ctx.fillStyle = trackColor;
+    ctx.fill();
+  });
+
+  // Filled arc
+  if (pct > 0) {
+    const fillEnd = SA + Math.PI * (pct / 100);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, SA, fillEnd);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lw;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+  }
+
+  // Needle tip dot at end of fill
+  if (pct > 0 && pct < 100) {
+    const ang = SA + Math.PI * (pct / 100);
+    ctx.beginPath();
+    ctx.arc(cx + Math.cos(ang) * r, cy + Math.sin(ang) * r, lw / 2, 0, 2 * Math.PI);
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+
+  // Percentage value
+  const fontSize = Math.round(r * 0.38);
+  ctx.font = `800 ${fontSize}px system-ui`;
+  ctx.fillStyle = cssVar('--text');
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(pct + '%', cx, cy - r * 0.08);
+
+  // KCR label
+  ctx.font = `500 11px system-ui`;
+  ctx.fillStyle = cssVar('--muted');
+  ctx.textBaseline = 'top';
+  ctx.fillText(label, cx, cy + 8);
+}
+
+// ─── AI Insight Engines ───────────────────────────────────────────────────────
+
+function getTopIssues() {
+  // Always uses ALL surveys, last 48 h → fallback to last 7 d
+  const now = new Date();
+  const cut48  = new Date(now - 2   * 864e5);
+  const cut7d  = new Date(now - 7   * 864e5);
+  let recent = ALL.filter(s => s.date >= cut48);
+  let label  = '48 h';
+  if (recent.length < 5) { recent = ALL.filter(s => s.date >= cut7d); label = '7 days'; }
+  if (recent.length < 3) return [{ sev:'low', text:'No recent surveys found — insights will appear as data comes in.' }];
+
+  const n = recent.length;
+  const items = [];
+
+  // Critical KCR failures (score 1–2)
+  KCR_KEYS.map(k => ({
+    k, label: k[0].toUpperCase() + k.slice(1),
+    rate: recent.filter(s => s[k] <= 2).length / n * 100,
+  }))
+  .filter(d => d.rate >= 8).sort((a,b) => b.rate - a.rate)
+  .slice(0, 2).forEach(d => items.push({
+    sev: d.rate >= 20 ? 'high' : 'medium',
+    text: `<em>${d.label}</em> scored 1–2 in <em>${Math.round(d.rate)}%</em> of visits in the last ${label}`,
+  }));
+
+  // Unhappy CHS rate
+  const unhappyPct = recent.filter(s => chsCat(s) === 'unhappy').length / n * 100;
+  if (unhappyPct >= 10) items.push({
+    sev: unhappyPct >= 25 ? 'high' : 'medium',
+    text: `<em>${Math.round(unhappyPct)}%</em> of guests left <em>unhappy</em> (at least one KCR scored 1–2) in the last ${label}`,
+  });
+
+  // Top recurring negative keyword
+  const freq = {};
+  recent.filter(s => textSentiment(s.feedback) === 'negative')
+    .forEach(s => tokenize(s.feedback).forEach(w => { if (NEGATIVE_WORDS.has(w)) freq[w] = (freq[w]||0)+1; }));
+  const topNeg = Object.entries(freq).sort((a,b) => b[1]-a[1])[0];
+  if (topNeg && topNeg[1] >= 2) items.push({
+    sev: topNeg[1] >= 4 ? 'high' : 'medium',
+    text: `"<em>${topNeg[0]}</em>" appeared <em>${topNeg[1]}×</em> in negative feedback in the last ${label}`,
+  });
+
+  if (items.length === 0) items.push({
+    sev: 'low',
+    text: `No critical issues found across <em>${n}</em> recent surveys in the last ${label} — all KCRs within normal range`,
+  });
+
+  return items.slice(0, 4);
+}
+
+function getNPSDrivers(surveys) {
+  const n = surveys.length;
+  const promoters  = surveys.filter(s => s.nps >= 9);
+  const detractors = surveys.filter(s => s.nps <= 6);
+
+  if (n < 10 || promoters.length < 3 || detractors.length < 3)
+    return [{ sev:'low', text:'Not enough promoter & detractor responses in this period to rank NPS drivers — try a wider date range.' }];
+
+  const avgFor = (group, k) => group.reduce((s,r) => s + r[k], 0) / group.length;
+
+  const ranked = KCR_KEYS.map(k => {
+    const pA = avgFor(promoters, k), dA = avgFor(detractors, k);
+    return { k, lbl: k[0].toUpperCase()+k.slice(1), pA, dA, gap: pA - dA };
+  }).sort((a,b) => b.gap - a.gap);
+
+  const items = [];
+
+  ranked.slice(0, 2).forEach((d, i) => items.push({
+    sev: i === 0 ? 'high' : 'medium',
+    text: `<em>${d.lbl}</em> is the ${i===0?'#1':'#2'} driver — promoters avg <em>${d.pA.toFixed(1)}</em> vs detractors <em>${d.dA.toFixed(1)}</em> (<em>+${d.gap.toFixed(1)}</em> gap)`,
+  }));
+
+  const weakest = ranked[ranked.length - 1];
+  items.push({
+    sev: 'low',
+    text: `<em>${weakest.lbl}</em> has the smallest gap (<em>${weakest.gap.toFixed(1)}</em>) — least differentiated KCR between promoters and detractors`,
+  });
+
+  const promPct = Math.round(promoters.length / n * 100);
+  items.push({
+    sev: promPct >= 50 ? 'low' : promPct >= 30 ? 'medium' : 'high',
+    text: `<em>${promPct}%</em> of surveyed guests are promoters — ${promPct >= 50 ? 'strong advocacy base' : promPct >= 30 ? 'growth opportunity remains' : 'below healthy promoter threshold'}`,
+  });
+
+  return items.slice(0, 4);
+}
+
+function getEmergingRisks(surveys) {
+  const now = new Date();
+  const d14 = new Date(now - 14 * 864e5);
+  const d28 = new Date(now - 28 * 864e5);
+
+  const recent = surveys.filter(s => s.date >= d14);
+  const prior  = surveys.filter(s => s.date >= d28 && s.date < d14);
+  const mR = calcMetrics(recent), mP = calcMetrics(prior);
+
+  if (!mR || !mP || recent.length < 5 || prior.length < 5)
+    return [{ sev:'low', text:'Select a wider range (30D or 90D) to compare recent vs prior periods and surface emerging risks.' }];
+
+  const items = [];
+
+  // NPS shift
+  const nDelta = mR.nps - mP.nps;
+  if (Math.abs(nDelta) >= 4) items.push({
+    sev: Math.abs(nDelta) >= 12 ? 'high' : 'medium',
+    text: `NPS ${nDelta < 0 ? 'dropped' : 'gained'} <em>${Math.abs(Math.round(nDelta))} pts</em> (${sign(mP.nps)} → ${sign(mR.nps)}) — last 2 weeks vs prior 2 weeks`,
+  });
+
+  // KCR top-box declines
+  KCR_KEYS.map(k => {
+    const rTB = recent.filter(s => s[k] >= 4).length / recent.length * 100;
+    const pTB = prior.filter(s =>  s[k] >= 4).length / prior.length  * 100;
+    return { lbl: k[0].toUpperCase()+k.slice(1), delta: rTB - pTB, rTB, pTB };
+  })
+  .filter(d => d.delta <= -6).sort((a,b) => a.delta - b.delta)
+  .slice(0, 2).forEach(d => items.push({
+    sev: d.delta <= -15 ? 'high' : 'medium',
+    text: `<em>${d.lbl}</em> top-box fell <em>${Math.abs(Math.round(d.delta))}%</em> (${Math.round(d.pTB)}% → ${Math.round(d.rTB)}%) vs prior 2 weeks`,
+  }));
+
+  // CHS drift
+  const cDelta = mR.chs - mP.chs;
+  if (cDelta <= -5) items.push({
+    sev: cDelta <= -15 ? 'high' : 'medium',
+    text: `CHS slipped <em>${Math.abs(Math.round(cDelta))}%</em> — happiness rate declining vs prior period`,
+  });
+
+  // Negative text sentiment rise
+  const rNeg = recent.filter(s => textSentiment(s.feedback) === 'negative').length / recent.length * 100;
+  const pNeg = prior.filter(s =>  textSentiment(s.feedback) === 'negative').length / prior.length  * 100;
+  const sDelta = rNeg - pNeg;
+  if (sDelta >= 6) items.push({
+    sev: sDelta >= 14 ? 'high' : 'medium',
+    text: `Negative text sentiment up <em>${Math.round(sDelta)}%</em> — feedback language is trending more critical`,
+  });
+
+  if (items.length === 0) {
+    const bestGain = KCR_KEYS.map(k => {
+      const rTB = recent.filter(s => s[k] >= 4).length / recent.length * 100;
+      const pTB = prior.filter(s =>  s[k] >= 4).length / prior.length  * 100;
+      return { lbl: k[0].toUpperCase()+k.slice(1), delta: rTB - pTB };
+    }).sort((a,b) => b.delta - a.delta)[0];
+
+    items.push({ sev:'low', text: bestGain && bestGain.delta >= 4
+      ? `No risks detected. <em>${bestGain.lbl}</em> top-box improved <em>+${Math.round(bestGain.delta)}%</em> — positive momentum vs prior period`
+      : 'No emerging risks detected. All key metrics are stable vs prior 2-week period.',
+    });
+  }
+
+  return items.slice(0, 4);
+}
+
+function renderInsights(surveys) {
+  const sections = [
+    { id: 'ai-issues',  items: getTopIssues()          },
+    { id: 'ai-drivers', items: getNPSDrivers(surveys)  },
+    { id: 'ai-risks',   items: getEmergingRisks(surveys) },
+  ];
+
+  sections.forEach(({ id, items }) => {
+    document.getElementById(id).innerHTML = items.map(({ sev='low', text }) =>
+      `<div class="ai-item">
+         <div class="ai-dot ${sev}"></div>
+         <div class="ai-item-text">${text}</div>
+       </div>`
+    ).join('');
+  });
+
+  const now = new Date();
+  document.getElementById('ai-meta').textContent =
+    `${surveys.length} surveys · ${now.toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'})}`;
+}
+
+// ─── Word Cloud ───────────────────────────────────────────────────────────────
+let wcTimer = null;
+function renderWordCloud(words) {
+  const canvas = document.getElementById('word-cloud-canvas');
+  if (!canvas) return;
+  clearTimeout(wcTimer);
+  wcTimer = setTimeout(() => {
+    const dpr = window.devicePixelRatio || 1;
+    const W = canvas.offsetWidth || 400;
+    const H = 270;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+
+    if (typeof WordCloud !== 'undefined') {
+      const maxFreq = words[0]?.[1] || 1;
+      const list = words.slice(0, 65).map(([w, f]) => [w, Math.max(10, (f / maxFreq) * 54)]);
+      WordCloud(canvas, {
+        list,
+        gridSize: Math.max(4, Math.round(W / 55)),
+        weightFactor: dpr,
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontWeight: '700',
+        color: w => wordColor(w),
+        backgroundColor: 'transparent',
+        rotateRatio: 0.25,
+        rotationSteps: 2,
+        drawOutOfBound: false,
+        shrinkToFit: true,
+        minSize: 8 * dpr,
+      });
+    } else {
+      // Canvas fallback: spiral tag cloud
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const maxFreq = words[0]?.[1] || 1;
+      const placed = [];
+      words.slice(0, 50).forEach(([word, freq]) => {
+        const fs = Math.max(10, Math.round((freq / maxFreq) * 44)) * dpr;
+        ctx.font = `700 ${fs}px system-ui`;
+        const tw = ctx.measureText(word).width, th = fs * 1.2;
+        for (let step = 0; step < 600; step++) {
+          const ang = step * 0.35, rad = step * 0.7;
+          const x = (W * dpr / 2) + Math.cos(ang) * rad - tw / 2;
+          const y = (H * dpr / 2) + Math.sin(ang) * rad - th / 2;
+          if (x < 0 || x + tw > W * dpr || y < 0 || y + th > H * dpr) continue;
+          const r = { x, y, w: tw, h: th };
+          if (placed.some(p => r.x < p.x + p.w && r.x + r.w > p.x && r.y < p.y + p.h && r.y + r.h > p.y)) continue;
+          placed.push(r);
+          ctx.fillStyle = wordColor(word);
+          ctx.textBaseline = 'top';
+          ctx.fillText(word, x, y);
+          break;
+        }
+      });
+    }
+  }, 80);
+}
+
+function renderTextAnalytics(surveys) {
+  const tm = calcTextMetrics(surveys);
+  if (!tm) return;
+
+  // Sentiment KPI cards
+  document.getElementById('sent-pos-pct').textContent = tm.posPct + '%';
+  document.getElementById('sent-pos-count').textContent = `${tm.pos} of ${tm.n} surveys`;
+  document.getElementById('sent-pos-bar').style.width = tm.posPct + '%';
+  document.getElementById('sent-neu-pct').textContent = tm.neuPct + '%';
+  document.getElementById('sent-neu-count').textContent = `${tm.neu} of ${tm.n} surveys`;
+  document.getElementById('sent-neu-bar').style.width = tm.neuPct + '%';
+  document.getElementById('sent-neg-pct').textContent = tm.negPct + '%';
+  document.getElementById('sent-neg-count').textContent = `${tm.neg} of ${tm.n} surveys`;
+  document.getElementById('sent-neg-bar').style.width = tm.negPct + '%';
+
+  // Word Cloud
+  renderWordCloud(tm.words);
+
+  // Top Keywords chart (top 12)
+  const top = tm.words.slice(0, 12);
+  keywordsChart.data.labels = top.map(([w]) => w);
+  keywordsChart.data.datasets[0].data = top.map(([, f]) => f);
+  keywordsChart.data.datasets[0].backgroundColor = top.map(([w]) => wordColor(w) + 'cc');
+  keywordsChart.update();
+
+  // Sentiment Trend
+  const trend = calcSentimentTrend(surveys);
+  sentimentTrendChart.data.labels = trend.map(t =>
+    new Date(t.week).toLocaleDateString('en-US', { month:'short', day:'numeric' })
+  );
+  sentimentTrendChart.data.datasets[0].data = trend.map(t => t.score);
+  sentimentTrendChart.update();
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function render(days) {
+  const surveys = filterSurveys(days);
+  const m = calcMetrics(surveys);
+  if (!m) return;
+
+  // KPI: NPS
+  const npsEl = document.getElementById('nps-score');
+  npsEl.textContent = sign(m.nps); npsEl.style.color = scoreColor(m.nps);
+  document.getElementById('nps-sub').innerHTML =
+    `<span style="color:var(--positive)">${m.promoters} promoters</span> &nbsp;·&nbsp; ` +
+    `<span style="color:var(--muted)">${m.passives} passives</span> &nbsp;·&nbsp; ` +
+    `<span style="color:var(--negative)">${m.detractors} detractors</span>`;
+  const npsBar = document.getElementById('nps-bar');
+  npsBar.style.width = `${(m.nps+100)/2}%`; npsBar.style.background = scoreColor(m.nps);
+
+  // KPI: CHS
+  const chsEl = document.getElementById('chs-score');
+  chsEl.textContent = m.chs + '%'; chsEl.style.color = chsColor(m.chs);
+  document.getElementById('chs-sub').innerHTML =
+    `<span style="color:var(--positive)">${m.happy} happy</span> &nbsp;·&nbsp; ` +
+    `<span style="color:var(--neutral-col)">${m.neutral} neutral</span> &nbsp;·&nbsp; ` +
+    `<span style="color:var(--negative)">${m.unhappy} unhappy</span>`;
+  const chsBar = document.getElementById('chs-bar');
+  chsBar.style.width = `${m.chs}%`; chsBar.style.background = chsColor(m.chs);
+
+  // KPI: Total
+  document.getElementById('total-surveys').textContent = m.n.toLocaleString();
+  document.getElementById('total-sub').textContent = days ? `last ${days} days` : 'all time';
+
+  // KPI: KCR
+  const kcrEl = document.getElementById('avg-kcr');
+  kcrEl.textContent = m.kcrScore.avg.toFixed(2); kcrEl.style.color = kcrColor(m.kcrScore.avg);
+  document.getElementById('kcr-bar').style.width = `${(m.kcrScore.avg/5)*100}%`;
+
+  // NPS Donut
+  npsChart.data.datasets[0].data = [m.promoters, m.passives, m.detractors];
+  npsChart.options.plugins.centerText = { text: sign(m.nps), sub: 'NPS', color: scoreColor(m.nps) };
+  npsChart.update();
+  document.getElementById('nps-legend').innerHTML = [
+    ['Promoters','#10b981', m.promoters],
+    ['Passives', '#7a8fb0', m.passives],
+    ['Detractors','#ef4444', m.detractors],
+  ].map(([l,c,v]) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${l}&nbsp;<span class="legend-val">${Math.round(v/m.n*100)}%</span></div>`
+  ).join('');
+
+  // CHS Donut
+  chsChart.data.datasets[0].data = [m.happy, m.neutral, m.unhappy];
+  chsChart.options.plugins.centerText = { text: m.chs + '%', sub: 'CHS', color: chsColor(m.chs) };
+  chsChart.update();
+  document.getElementById('chs-legend').innerHTML = [
+    ['Happy',   '#10b981', m.happy],
+    ['Neutral', '#f59e0b', m.neutral],
+    ['Unhappy', '#ef4444', m.unhappy],
+  ].map(([l,c,v]) =>
+    `<div class="legend-item"><div class="legend-dot" style="background:${c}"></div>${l}&nbsp;<span class="legend-val">${Math.round(v/m.n*100)}%</span></div>`
+  ).join('');
+
+  // KCR Radar (uses average scores, 1–5 scale)
+  kcrChart.data.datasets[0].data = KCR_KEYS.map(k => m.kcrScore[k]);
+  kcrChart.update();
+
+  // KCR Gauges (Top Box %)
+  const grid = document.getElementById('kcr-gauge-grid');
+  grid.innerHTML = KCR_KEYS.map(k =>
+    `<div class="gauge-item"><canvas class="gauge-canvas" data-key="${k}"></canvas></div>`
+  ).join('');
+  grid.querySelectorAll('.gauge-canvas').forEach(canvas => {
+    const k = canvas.dataset.key;
+    const label = k.charAt(0).toUpperCase() + k.slice(1);
+    drawGauge(canvas, m.kcr[k], label, chsColor(m.kcr[k]));
+  });
+
+  // KCR Stacked Bar
+  for (let si = 0; si < 5; si++) {
+    const score = si + 1;
+    kcrBarChart.data.datasets[si].data = KCR_KEYS.map(k => surveys.filter(s => s[k] === score).length);
+  }
+  kcrBarChart.update();
+
+  // Trend
+  const trend = calcTrend(surveys);
+  trendChart.data.labels = trend.map(t => {
+    const d = new Date(t.week);
+    return d.toLocaleDateString('en-US', { month:'short', day:'numeric' });
+  });
+  trendChart.data.datasets[0].data = trend.map(t => t.nps);
+  trendChart.data.datasets[1].data = trend.map(t => t.chs);
+  trendChart.update();
+
+  // AI Insights
+  renderInsights(surveys);
+
+  // Text Analytics
+  renderTextAnalytics(surveys);
+
+  // Table
+  const recent = surveys.slice(0, 20);
+  document.getElementById('survey-table').innerHTML = recent.map(s => {
+    const cat = chsCat(s), nc = npsCat(s.nps);
+    const dots = KCR_KEYS.map(k => `<div class="kd kd-${s[k]}" title="${k}: ${s[k]}">${s[k]}</div>`).join('');
+    return `<tr>
+      <td style="color:var(--muted);white-space:nowrap">${fmtDate(s.date)}</td>
+      <td><strong>${s.nps}</strong></td>
+      <td><span class="badge badge-${nc}">${nc}</span></td>
+      <td>${s.hospitality}</td>
+      <td>${s.cleanliness}</td>
+      <td>${s.speed}</td>
+      <td>${s.quality}</td>
+      <td>${s.accuracy}</td>
+      <td>${s.value}</td>
+      <td><span class="badge badge-${cat}">${cat}</span></td>
+      <td class="feedback-cell">${s.feedback}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ─── Filter buttons ───────────────────────────────────────────────────────────
+let activeDays = 30;
+document.querySelectorAll('.filter-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    activeDays = btn.dataset.days ? +btn.dataset.days : null;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    render(activeDays);
+  });
+});
+
+render(activeDays);
+
+// ─── Theme toggle ─────────────────────────────────────────────────────────────
+const allCharts = [npsChart, chsChart, kcrChart, trendChart, kcrBarChart, keywordsChart, sentimentTrendChart];
+
+function applyTheme(theme) {
+  document.documentElement.setAttribute('data-theme', theme);
+  localStorage.setItem('cx-theme', theme);
+  document.getElementById('theme-icon').textContent = theme === 'light' ? '☀️' : '🌙';
+
+  // Sync Chart.js global defaults to new theme colors
+  Chart.defaults.color = cssVar('--muted');
+  Chart.defaults.borderColor = cssVar('--border');
+
+  // Re-apply tick/label colors on each chart and redraw
+  allCharts.forEach(chart => {
+    ['x','y','r'].forEach(axis => {
+      const sc = chart.options.scales?.[axis];
+      if (sc?.ticks) sc.ticks.color = cssVar('--muted');
+      if (sc?.pointLabels) sc.pointLabels.color = cssVar('--muted');
+    });
+    chart.update();
+  });
+
+  // Redraw gauges (they read CSS vars at draw time)
+  render(activeDays);
+}
+
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  const current = document.documentElement.getAttribute('data-theme') || 'dark';
+  applyTheme(current === 'dark' ? 'light' : 'dark');
+});
+
+// Restore saved preference
+const saved = localStorage.getItem('cx-theme');
+if (saved) applyTheme(saved);
+</script>
+</body>
+</html>
